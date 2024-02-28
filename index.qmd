@@ -8,7 +8,7 @@ format: html
 
 - [Literate Analysis](literate_analysis.html)
 - [Cleaning and Wrangling Data](tidying data.html)
-- Data Visualization
+- [Data Visualization](data-viz.html)
 - Functions and Packages
 
 ## Course Practice Session

@@ -1,0 +1,12 @@
+---
+title: "Practice Session 2"
+format: html
+editor: visual
+---
+
+```{r}
+library(rvest)
+library(readr)
+library(dplyr)
+library(janitor)
+```

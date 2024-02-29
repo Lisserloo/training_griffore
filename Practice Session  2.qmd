@@ -10,3 +10,113 @@ library(readr)
 library(dplyr)
 library(janitor)
 ```
+
+```{r}
+webpage <- rvest::read_html("https://www.pwrc.usgs.gov/BBL/Bander_Portal/login/speclist.php")
+
+tbls <- rvest::html_nodes(webpage, "table") %>% 
+    rvest::html_table(fill = TRUE)
+
+species <- tbls[[1]] %>% 
+    janitor::clean_names() %>% 
+    select(alpha_code, common_name) %>% 
+    mutate(alpha_code = tolower(alpha_code))
+
+head(species, 3)
+
+```
+
+```{r}
+## When reading from a file in your data folder in your Rpoj
+nest_data <-  read_csv("Data/Utqiagvik_nest_data.csv")
+
+predator_survey <- read_csv("Data/Utqiagvik_predator_surveys.csv")
+
+egg_measures <- read_csv("Data/Utqiagvik_egg_measurements.csv")
+## read_csv("https://arcticdata.io/metacat/d1/mn/v2/object/urn%3Auuid%3A982bd2fc-4edf-4da7-96ef-0d11b8##53102d")
+
+## When reading using the url
+nest_data <-  read_csv("https://arcticdata.io/metacat/d1/mn/v2/object/urn%3Auuid%3A982bd2fc-4edf-4da7-96ef-0d11b853102d")
+
+predator_survey <- read_csv("https://arcticdata.io/metacat/d1/mn/v2/object/urn%3Auuid%3A9ffec04c-7e2d-41dd-9e88-b6c2e8c4375e")
+
+egg_measures <- read_csv("https://arcticdata.io/metacat/d1/mn/v2/object/urn%3Auuid%3A4b219711-2282-420a-b1d6-1893fe4a74a6")
+
+## Exploring the data (these functions can also be used to explore nest_data & egg_measures) 
+
+colnames(predator_survey)
+glimpse(predator_survey)
+unique(predator_survey$species)
+summary(predator_survey)
+```
+
+```{r}
+predator_comm_names <- left_join(predator_survey,
+                                 species,
+                                 by = c("species" = "alpha_code"))
+```
+
+```{r}
+#' Title How to join data according to name and name code
+#'
+#' @param df 
+#' @param species left join
+#'
+#' @return combines/ joions two columns that were once independent or part of another table
+#' @export
+#'
+#' @examples
+assign_species_name <- function(df, species){
+    return_df <- left_join(df, species, by = c("species" = "alpha_code"))
+    return(return_df)
+}
+```
+#Create clean versions of the three data frames by applying the function you created and removing #columns that you think are note necessary(aka selecting the ones you want to keep) and filter out NA #values.
+```{r}
+predator_clean <- assign_species_name(predator_survey, species) %>% 
+    select(year, site, date, common_name, count) %>% 
+    filter(!is.na(common_name))
+
+nest_location_clean <- assign_species_name(nest_data, species) %>% 
+    select(year, site, nestID, common_name, lat_corrected, long_corrected) %>% 
+    filter(!is.na(common_name))
+
+eggs_clean <- assign_species_name(egg_measures, species) %>% 
+    select(year, site, nestID, common_name, length, width) %>% 
+    filter(!is.na(common_name))
+```
+
+#For a little extra challenge, try to incorporate an if statement that looks for NA values in the #common name field you are adding. What other conditionals might you include to make your function #smarter?
+
+```{r}
+#' Function to add common name to data.frame according to the BBL list of species codes
+
+#' @param df A data frame containing BBL species codes in column `species`
+#' @param species A data frame defining BBL species codes with columns `alpha_code` and `common_name`
+#' @return A data frame with original data df, plus the common name of species
+
+assign_species_name <- function(df, species){
+    if (!("alpha_code" %in% names(species)) |
+        !("species" %in% names(df)) |
+        !("common_name" %in% names(species))){
+      stop("Tables appear to be formatted incorrectly.")
+    }  
+  
+    return_df <- left_join(df, species, by = c("species" = "alpha_code"))
+    
+    if (nrow(return_df) > nrow(df)){
+      warning("Joined table has more rows than original table. Check species table for duplicated code values.")
+    }
+    
+    if (length(which(is.na(return_df$common_name))) > 0){
+      x <- length(which(is.na(return_df$common_name)))
+      warning(paste("Common name has", x, "rows containing NA"))
+    }
+    
+    return(return_df)
+        
+}
+
+
+```
+

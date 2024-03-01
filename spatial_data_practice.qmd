@@ -174,6 +174,8 @@ pop_region <- pop_joined %>%
 head(pop_region)
 ```
 
+include spatial information by by joining ak_region_3338
+
 ```{r}
 pop_region_3338 <- left_join(ak_regions_3338, 
                              pop_region, 
@@ -181,4 +183,34 @@ pop_region_3338 <- left_join(ak_regions_3338,
 
 # plot to check
 plot(pop_region_3338["total_pop"])
+```
+
+Say we want to calculate the population by Alaska management area, as opposed to region.
+
+```{r}
+pop_mgmt_3338 <- pop_region_3338 %>%
+    group_by(mgmt_area) %>%
+    summarize(total_pop = sum(total_pop))
+
+plot(pop_mgmt_3338["total_pop"])
+```
+
+Notice that the region geometries were combined into a single polygon for each management area.
+
+If we don’t want to combine geometries, we can specify `do_union = F` as an argument.
+
+```{r}
+pop_mgmt_3338 <- pop_region_3338 %>%
+    group_by(mgmt_area) %>%
+    summarize(total_pop = sum(total_pop), do_union = F)
+
+plot(pop_mgmt_3338["total_pop"])
+```
+
+**4. Save the spatial object to a new file using `write_sf()`**
+
+Save the spatial object to disk using `write_sf()` and specifying the filename. Writing your file with the extension `.shp` will assume an ESRI driver [driver](http://www.gdal.org/ogr_formats.html), but there are many other format options available.
+
+```{r}
+write_sf(pop_region_3338, "data/ak_regions_population.shp")
 ```

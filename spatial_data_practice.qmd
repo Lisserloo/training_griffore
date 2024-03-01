@@ -214,3 +214,138 @@ Save the spatial object to disk using `write_sf()` and specifying the filename. 
 ```{r}
 write_sf(pop_region_3338, "data/ak_regions_population.shp")
 ```
+
+`ggplot2` now has integrated functionality to plot sf objects using `geom_sf()`.
+
+We can plot `sf` objects just like regular data.frames using `geom_sf`.
+
+```{r}
+ggplot(pop_region_3338) +
+    geom_sf(aes(fill = total_pop)) +
+    labs(fill = "Total Population") +
+    scale_fill_continuous(low = "khaki",
+                          high =  "firebrick",
+                          labels = comma) +
+    theme_bw()
+```
+
+```{r}
+rivers_3338 <- read_sf("data/ak_rivers_simp.shp")
+st_crs(rivers_3338)
+
+```
+
+Note that although no EPSG code is set explicitly, with some sluething we can determine that this is `EPSG:3338`. [This site](https://epsg.io/) is helpful for looking up EPSG codes.
+
+```{r}
+ggplot() +
+    geom_sf(data = pop_region_3338, 
+            aes(fill = total_pop)) +
+    geom_sf(data = pop_3338, 
+            size = 0.5) +
+    geom_sf(data = rivers_3338,
+            aes(linewidth = StrOrder)) +
+    scale_linewidth(range = c(0.05, 0.5), 
+                    guide = "none") +
+    labs(title = "Total Population by Alaska Region",
+         fill = "Total Population") +
+    scale_fill_continuous(low = "khaki",
+                          high =  "firebrick",
+                          labels = comma) +
+    theme_bw() 
+```
+
+The `ggspatial` package has a function that can add tile layers from a few predefined tile sources like OpenStreetMap. The tiles will get projected into the CRS of the `sf` object pass into geom_sf(). Therefore no transformation is needed in this case.
+
+We will add `ggspatial::annotation_map_tile()` function into `ggplot` to add a base map to our map. This can take a couple of minutes to load.
+
+```{r}
+pop_3338 <- st_transform(pop_3338, 3857)
+ggplot(data = pop_3338) +
+    ggspatial::annotation_map_tile(type = "osm", zoom = 4) + # higher zoom values are more detailed 
+    geom_sf(aes(color = population),
+            fill = NA) +
+    scale_color_continuous(low = "darkkhaki",
+                           high =  "firebrick",
+                           labels = comma)
+```
+
+oops \#
+#leaflet
+
+```{r}
+st_crs(pop_region_3338)
+
+```
+
+Since `leaflet` requires that we use an unprojected coordinate system, let’s use `st_transform()` yet again to get back to WGS84.
+
+```{r}
+pop_region_4326 <- pop_region_3338 %>% 
+    st_transform(crs = 4326)
+
+```
+
+```{r}
+m <- leaflet(options = leafletOptions(crs = epsg3338)) %>%
+    addPolygons(data = pop_region_4326,
+                fillColor = "gray",
+                weight = 1)
+```
+
+We can also add the individual communities, with popup labels showing their population, on top of that!
+
+```{r}
+pal <- colorNumeric(palette = "Reds", domain = pop_region_4326$total_pop)
+
+m <- leaflet(options = leafletOptions(crs = epsg3338)) %>%
+    addPolygons(
+        data = pop_region_4326,
+        fillColor = ~ pal(total_pop),
+        weight = 1,
+        color = "black",
+        fillOpacity = 1,
+        label = ~ region
+    ) %>%
+    addLegend(
+        position = "bottomleft",
+        pal = pal,
+        values = range(pop_region_4326$total_pop),
+        title = "Total Population"
+    )
+
+m
+```
+
+```{r}
+pal <- colorNumeric(palette = "Reds", domain = pop_region_4326$total_pop)
+
+m <- leaflet(options = leafletOptions(crs = epsg3338)) %>%
+    addPolygons(
+        data = pop_region_4326,
+        fillColor = ~ pal(total_pop),
+        weight = 1,
+        color = "black",
+        fillOpacity = 1
+    ) %>%
+    addCircleMarkers(
+        data = pop_4326,
+        lat = ~ lat,
+        lng = ~ lng,
+        radius = ~ log(population / 500),
+        # arbitrary scaling
+        fillColor = "gray",
+        fillOpacity = 1,
+        weight = 0.25,
+        color = "black",
+        label = ~ paste0(pop_4326$city, ", population ", comma(pop_4326$population))
+    ) %>%
+    addLegend(
+        position = "bottomleft",
+        pal = pal,
+        values = range(pop_region_4326$total_pop),
+        title = "Total Population"
+    )
+m
+
+```

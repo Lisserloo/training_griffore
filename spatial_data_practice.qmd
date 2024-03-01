@@ -3,3 +3,182 @@ title: "working with spatial data"
 format: html
 editor: visual
 ---
+
+##download data
+
+```{r}
+knb_url <- "https://dev.nceas.ucsb.edu/knb/d1/mn/v2/object/urn%3Auuid%3Aaceaecb2-1ce0-4d41-a839-d3607d32bb58"
+
+download.file(url = knb_url, destfile = 'shapefile_demo_data.zip')
+
+unzip('shapefile_demo_data.zip', exdir = 'data')
+
+file.remove('shapefile_demo_data.zip')
+```
+
+#load libraries
+
+```{r}
+library(readr)
+library(sf)
+library(ggplot2)
+library(leaflet)
+library(scales)
+library(ggspatial)
+library(dplyr)
+```
+
+```{r}
+# read in shapefile using read_sf()
+ak_regions <- read_sf("data/ak_regions_simp.shp")
+
+plot(ak_regions)
+class(ak_regions)
+head(ak_regions)
+glimpse(ak_regions)
+
+```
+
+#You can view what `crs` (coordinate system) is set by using the function `st_crs()`.
+
+```{r}
+st_crs(ak_regions)
+
+```
+
+##We will use multiple EPSG codes in this lesson. Here they are, along with their more readable names:
+
+-   3338: Alaska Albers (projected CRS)
+
+-   4326: WGS84 (World Geodetic System 1984), used in GPS (unprojected CRS)
+
+-   3857: Pseudo-Mercator, used in Google Maps, OpenStreetMap, Bing, ArcGIS, ESRI (projected CRS)
+
+```{r}
+ak_regions_3338 <- ak_regions %>%
+    st_transform(crs = 3338)
+
+st_crs(ak_regions_3338)
+```
+
+```{r}
+plot(ak_regions_3338)
+```
+
+\#**sf** objects can be used as a regular `data.frame` object in many operations. We already saw the results of `plot()` and `head()`.
+
+Since `sf` objects are data.frames, they play nicely with packages in the `tidyverse`. Here are a couple of simple examples:
+
+```{r}
+# returns the names of all the columns in dataset
+colnames(ak_regions_3338)
+```
+
+```{r}
+ak_regions_3338 %>%
+    select(region)
+```
+
+#filter for specific region
+
+```{r}
+ak_regions_3338 %>%
+    filter(region == "Southeast")
+
+```
+
+#You can also use the `sf` package to create spatial joins, useful for when you want to utilize two datasets together.
+
+We have some population data, but it gives the population by city, not by region. To determine the population per region we will need to:
+
+1.  Read in the population data from a `csv` and turn it into an `sf` object
+
+2.  Use a spatial join (`st_join()`) to assign each city to a region
+
+3.  Use `group_by()` and `summarize()` to calculate the total population by region
+
+4.  Save the spatial object you created using `write_sf()`
+
+note: st_join is always a left join
+
+```{r}
+# read in population data
+pop <- read_csv("data/alaska_population.csv")
+head(pop)
+class(pop) #to see class of vector
+```
+
+**Turn `pop` into a spatial object**
+
+The `st_join()` function is a spatial left join. The arguments for both the left and right tables are objects of class `sf` which means we will first need to turn our population `data.frame` with latitude and longitude coordinates into an `sf` object.
+
+We can do this easily using the `st_as_sf()` function, which takes as arguments the coordinates and the `crs`. The `remove = F` specification here ensures that when we create our `geometry` column, we retain our original `lat` `lng` columns, which we will need later for plotting. Although it isn’t said anywhere explicitly in the file, let’s assume that the coordinate system used to reference the latitude longitude coordinates is WGS84, which has a `crs` number of 4326.
+
+```{r}
+pop_4326 <- st_as_sf(pop,
+                     coords = c('lng', 'lat'),
+                     crs = 4326,
+                     remove = F)
+
+head(pop_4326)
+```
+
+#transforming pop into spatial object with crs: 4326: WGS84 (World Geodetic System 1984), used in GPS (unprojected CRS)
+
+```{r}
+pop_4326 <- st_as_sf(pop,
+                     coords = c('lng', 'lat'),
+                     crs = 4326,
+                     remove = F)
+
+head(pop_4326)
+```
+
+```{r}
+pop_joined <- st_join(pop_3338, 
+                      ak_regions_3338, 
+                      join = st_within)
+
+head(pop_joined)
+```
+
+join population data with Alaska region
+
+```{r}
+pop_joined <- st_join(pop_4326, 
+                      ak_regions_3338, 
+                      join = st_within)
+
+head(pop_joined)
+```
+
+```{r}
+pop_3338 <- st_transform(pop_4326, 
+                         crs = 3338)
+```
+
+```{r}
+pop_joined <- st_join(pop_3338, 
+                      ak_regions_3338, 
+                      join = st_within)
+
+head(pop_joined)
+```
+
+```{r}
+pop_region <- pop_joined %>%
+    as.data.frame() %>%
+    group_by(region) %>%
+    summarise(total_pop = sum(population))
+
+head(pop_region)
+```
+
+```{r}
+pop_region_3338 <- left_join(ak_regions_3338, 
+                             pop_region, 
+                             by = "region")
+
+# plot to check
+plot(pop_region_3338["total_pop"])
+```
